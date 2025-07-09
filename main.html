@@ -103,10 +103,26 @@
             margin: 20px 0;
         }
         .video-js {
-            min-width: 600px;
+            min-width: 400px;
             min-height: 600px;
-            width: 100%;
-            max-width: 100%;
+            width: 70%;
+            max-width: 70%;
+        }
+        .video-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1e3a8a;
+            margin-bottom: 10px;
+        }
+        .series-selector {
+            margin: 10px 0;
+            display: none;
+        }
+        .series-selector select {
+            padding: 8px;
+            margin-right: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
         }
         .epg {
             margin-top: 20px;
@@ -161,9 +177,18 @@
         <div class="content" id="content">
             <div id="content-grid" class="content-grid"></div>
             <div id="video-player" class="video-player" style="display: none;">
+                <h3 id="video-title" class="video-title"></h3>
                 <video id="player" class="video-js vjs-default-skin" controls preload="auto">
                     <source src="" type="application/x-mpegURL">
                 </video>
+                <div id="series-selector" class="series-selector">
+                    <select id="season-select" onchange="updateEpisodes()">
+                        <option value="">Selecione a temporada</option>
+                    </select>
+                    <select id="episode-select" onchange="playEpisode()">
+                        <option value="">Selecione o episódio</option>
+                    </select>
+                </div>
             </div>
             <div id="epg" class="epg" style="display: none;"></div>
             <div id="account-info" class="account-info"></div>
@@ -177,6 +202,8 @@
             username: getCookie('username'),
             password: getCookie('password')
         };
+        let currentSeriesId = null;
+        let seriesInfo = null;
 
         // Redirect to login if not authenticated
         if (!credentials.host || !credentials.username || !credentials.password) {
@@ -203,6 +230,7 @@
             document.getElementById('epg').style.display = 'none';
             document.getElementById('account-info').style.display = 'none';
             document.getElementById('content-grid').style.display = 'grid';
+            document.getElementById('series-selector').style.display = 'none';
             fetchCategories(section);
         }
 
@@ -249,16 +277,26 @@
             document.getElementById('content-grid').style.display = 'none';
             document.getElementById('account-info').style.display = 'none';
             const playerDiv = document.getElementById('video-player');
+            const videoTitle = document.getElementById('video-title');
+            const seriesSelector = document.getElementById('series-selector');
             playerDiv.style.display = 'block';
-            const action = section === 'live' ? 'get_live_streams' :
-                          section === 'movies' ? 'get_vod_streams' : 'get_series';
-            const streamUrl = `${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=${action}&stream_id=${streamId}`;
+            videoTitle.textContent = name; // Set the title above the video player
+
             const player = videojs('player');
-            player.src({
-                src: `${credentials.host}/${section === 'live' ? 'live' : section === 'movies' ? 'movie' : 'series'}/${encodeURIComponent(credentials.username)}/${encodeURIComponent(credentials.password)}/${streamId}.${section === 'movies' ? 'mp4' : 'm3u8'}`,
-                type: 'application/x-mpegURL'
-            });
-            player.play();
+            if (section === 'series') {
+                currentSeriesId = streamId;
+                fetchSeriesInfo(streamId);
+                seriesSelector.style.display = 'block';
+            } else {
+                seriesSelector.style.display = 'none';
+                const action = section === 'live' ? 'get_live_streams' : 'get_vod_streams';
+                const streamUrl = `${credentials.host}/${section === 'live' ? 'live' : 'movie'}/${encodeURIComponent(credentials.username)}/${encodeURIComponent(credentials.password)}/${streamId}.${section === 'movies' ? 'mp4' : 'm3u8'}`;
+                player.src({
+                    src: streamUrl,
+                    type: 'application/x-mpegURL'
+                });
+                player.play();
+            }
 
             // Load EPG for live TV
             if (section === 'live') {
@@ -268,21 +306,104 @@
             }
         }
 
+        function fetchSeriesInfo(seriesId) {
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_series_info&series_id=${seriesId}`)
+                .then(response => response.json())
+                .then(data => {
+                    seriesInfo = data;
+                    const seasonSelect = document.getElementById('season-select');
+                    seasonSelect.innerHTML = '<option value="">Selecione a temporada</option>';
+                    if (data.seasons && Array.isArray(data.seasons)) {
+                        data.seasons.forEach(season => {
+                            const option = document.createElement('option');
+                            option.value = season.season_number;
+                            option.textContent = `Temporada ${season.season_number}`;
+                            seasonSelect.appendChild(option);
+                        });
+                    }
+                    updateEpisodes();
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar informações da série:', error);
+                    alert('Erro ao carregar informações da série.');
+                    document.getElementById('series-selector').style.display = 'none';
+                });
+        }
+
+        function updateEpisodes() {
+            const seasonSelect = document.getElementById('season-select');
+            const episodeSelect = document.getElementById('episode-select');
+            const selectedSeason = seasonSelect.value;
+            episodeSelect.innerHTML = '<option value="">Selecione o episódio</option>';
+
+            if (selectedSeason && seriesInfo && seriesInfo.episodes && seriesInfo.episodes[selectedSeason]) {
+                seriesInfo.episodes[selectedSeason].forEach(episode => {
+                    const option = document.createElement('option');
+                    option.value = episode.id;
+                    option.textContent = episode.title || `Episódio ${episode.episode_num}`;
+                    episodeSelect.appendChild(option);
+                });
+            }
+        }
+
+        function playEpisode() {
+            const seasonSelect = document.getElementById('season-select');
+            const episodeSelect = document.getElementById('episode-select');
+            const selectedEpisodeId = episodeSelect.value;
+
+            if (selectedEpisodeId && seriesInfo && seriesInfo.episodes && seriesInfo.episodes[seasonSelect.value]) {
+                const episode = seriesInfo.episodes[seasonSelect.value].find(ep => ep.id === selectedEpisodeId);
+                if (episode) {
+                    const player = videojs('player');
+                    const streamUrl = `${credentials.host}/series/${encodeURIComponent(credentials.username)}/${encodeURIComponent(credentials.password)}/${selectedEpisodeId}.${episode.container_extension || 'm3u8'}`;
+                    player.src({
+                        src: streamUrl,
+                        type: 'application/x-mpegURL'
+                    });
+                    player.play();
+                }
+            }
+        }
+
         function fetchEPG(streamId) {
             fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_short_epg&stream_id=${streamId}`)
                 .then(response => response.json())
                 .then(data => {
                     const epgDiv = document.getElementById('epg');
-                    epgDiv.innerHTML = data.epg_listings && data.epg_listings.length > 0
-                        ? data.epg_listings.map(program => `
-                            <div>
-                                <strong>${program.title}</strong>
-                                <p>${new Date(program.start * 1000).toLocaleString()} - ${new Date(program.end * 1000).toLocaleString()}</p>
-                                <p>${program.description}</p>
-                            </div>
-                        `).join('')
-                        : '<p>Nenhum EPG disponível.</p>';
-                    epgDiv.style.display = 'block';
+                    if (data.epg_listings && Array.isArray(data.epg_listings)) {
+                        epgDiv.innerHTML = data.epg_listings.map(program => {
+                            const startTimestamp = program.start_timestamp || null;
+                            const endTimestamp = program.stop_timestamp || null;
+                            const start = startTimestamp ? new Date(startTimestamp * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A';
+                            const end = endTimestamp ? new Date(endTimestamp * 1000).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : 'N/A';
+                            let title = 'Sem título';
+                            let description = '';
+                            try {
+                                title = program.title ? decodeURIComponent(escape(atob(program.title))) : 'Sem título';
+                                description = program.description ? decodeURIComponent(escape(atob(program.description))) : '';
+                            } catch (e) {
+                                console.error('Erro ao decodificar título ou descrição:', e);
+                            }
+                            if (!title || title.trim() === '') {
+                                title = 'Sem título';
+                            }
+                            if (!description || description.trim() === '') {
+                                description = 'Sem descrição';
+                            }
+
+                            return `
+                                <div>
+                                    <strong>${title}</strong>
+                                    <p>${start} - ${end}</p>
+                                    <p>${description}</p>
+                                </div>
+                            `;
+                        }).join('');
+                        epgDiv.style.display = 'block';
+                    } else {
+                        epgDiv.innerHTML = '<p>Nenhum EPG disponível.</p>';
+                        epgDiv.style.display = 'block';
+                    }
                 })
                 .catch(error => {
                     console.error('Erro ao carregar EPG:', error);
@@ -320,6 +441,7 @@
                                     document.getElementById('video-player').style.display = 'none';
                                     document.getElementById('epg').style.display = 'none';
                                     document.getElementById('account-info').style.display = 'none';
+                                    document.getElementById('series-selector').style.display = 'none';
                                     document.getElementById('content-grid').style.display = 'grid';
                                 });
                         });
@@ -330,6 +452,7 @@
             document.getElementById('content-grid').style.display = 'none';
             document.getElementById('video-player').style.display = 'none';
             document.getElementById('epg').style.display = 'none';
+            document.getElementById('series-selector').style.display = 'none';
             fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}`)
                 .then(response => response.json())
                 .then(data => {
