@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Xtream Codes</title>
+    <link href="https://vjs.zencdn.net/8.16.1/video-js.css" rel="stylesheet" />
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f4f8;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        .navbar {
+            background-color: #1e3a8a;
+            padding: 10px;
+            position: relative;
+        }
+        .navbar .menu-btn {
+            color: white;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 10px;
+        }
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #ffffff;
+            min-width: 200px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.2);
+            z-index: 1;
+            border-radius: 4px;
+        }
+        .dropdown-content a, .dropdown-content input, .dropdown-content button {
+            color: #1e3a8a;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+        }
+        .dropdown-content a:hover, .dropdown-content button:hover {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+        }
+        .sidebar {
+            width: 250px;
+            background-color: #ffffff;
+            border-right: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: auto;
+        }
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+        }
+        .sidebar ul li {
+            padding: 10px;
+            cursor: pointer;
+            color: #1e3a8a;
+        }
+        .sidebar ul li:hover {
+            background-color: #3b82f6;
+            color: white;
+        }
+        .content {
+            flex: 1;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 8px;
+            margin-left: 20px;
+        }
+        .content-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .content-item {
+            background-color: #f0f4f8;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .content-item img {
+            max-width: 100%;
+            border-radius: 4px;
+        }
+        .video-player {
+            margin: 20px 0;
+        }
+        .epg {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #e6f0fa;
+            border-radius: 4px;
+        }
+        .account-info {
+            display: none;
+            padding: 20px;
+            background-color: #e6f0fa;
+            border-radius: 4px;
+        }
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+                border-right: none;
+                border-bottom: 1px solid #ccc;
+            }
+            .content {
+                margin-left: 0;
+                margin-top: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <div class="dropdown">
+            <span class="menu-btn">☰ Menu</span>
+            <div class="dropdown-content">
+                <a onclick="loadSection('live')">TV ao Vivo</a>
+                <a onclick="loadSection('movies')">Filmes</a>
+                <a onclick="loadSection('series')">Séries</a>
+                <input type="text" id="search" placeholder="Buscar..." oninput="globalSearch()">
+                <a onclick="showAccountInfo()">Informações da Conta</a>
+                <button onclick="logout()">Sair</button>
+            </div>
+        </div>
+    </div>
+    <div class="container">
+        <div class="sidebar" id="categories"></div>
+        <div class="content" id="content">
+            <div id="content-grid" class="content-grid"></div>
+            <div id="video-player" class="video-player" style="display: none;">
+                <video id="player" class="video-js vjs-default-skin" controls preload="auto" width="100%" height="360">
+                    <source src="" type="application/x-mpegURL">
+                </video>
+            </div>
+            <div id="epg" class="epg" style="display: none;"></div>
+            <div id="account-info" class="account-info"></div>
+        </div>
+    </div>
+    <script src="https://vjs.zencdn.net/8.16.1/video.min.js"></script>
+    <script>
+        let currentSection = 'live';
+        let credentials = {
+            host: getCookie('host'),
+            username: getCookie('username'),
+            password: getCookie('password')
+        };
+
+        // Redirect to login if not authenticated
+        if (!credentials.host || !credentials.username || !credentials.password) {
+            window.location.href = 'index.html';
+        }
+
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return decodeURIComponent(parts.pop().split(';').shift());
+            return null;
+        }
+
+        function logout() {
+            document.cookie = 'host=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            document.cookie = 'username=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            document.cookie = 'password=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            window.location.href = 'index.html';
+        }
+
+        function loadSection(section) {
+            currentSection = section;
+            document.getElementById('video-player').style.display = 'none';
+            document.getElementById('epg').style.display = 'none';
+            document.getElementById('account-info').style.display = 'none';
+            document.getElementById('content-grid').style.display = 'grid';
+            fetchCategories(section);
+        }
+
+        function fetchCategories(section) {
+            const action = section === 'live' ? 'get_live_categories' :
+                          section === 'movies' ? 'get_vod_categories' : 'get_series_categories';
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=${action}`)
+                .then(response => response.json())
+                .then(categories => {
+                    const sidebar = document.getElementById('categories');
+                    sidebar.innerHTML = '<ul>' + categories.map(cat => `<li onclick="loadCategory('${section}', '${cat.category_id}', '${cat.category_name}')">${cat.category_name}</li>`).join('') + '</ul>';
+                    // Load first category by default
+                    if (categories.length > 0) {
+                        loadCategory(section, categories[0].category_id, categories[0].category_name);
+                    }
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar categorias:', error);
+                    alert('Erro ao carregar categorias.');
+                });
+        }
+
+        function loadCategory(section, categoryId, categoryName) {
+            const action = section === 'live' ? 'get_live_streams' :
+                          section === 'movies' ? 'get_vod_streams' : 'get_series';
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=${action}&category_id=${categoryId}`)
+                .then(response => response.json())
+                .then(items => {
+                    const contentGrid = document.getElementById('content-grid');
+                    contentGrid.innerHTML = items.map(item => `
+                        <div class="content-item" onclick="playStream('${section}', '${item.stream_id || item.series_id}', '${item.name}', '${item.stream_icon || ''}')">
+                            <img src="${item.stream_icon || 'https://via.placeholder.com/150'}" alt="${item.name}">
+                            <p>${item.name}</p>
+                        </div>
+                    `).join('');
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar itens:', error);
+                    alert('Erro ao carregar itens.');
+                });
+        }
+
+        function playStream(section, streamId, name, icon) {
+            document.getElementById('content-grid').style.display = 'none';
+            document.getElementById('account-info').style.display = 'none';
+            const playerDiv = document.getElementById('video-player');
+            playerDiv.style.display = 'block';
+            const action = section === 'live' ? 'get_live_streams' :
+                          section === 'movies' ? 'get_vod_streams' : 'get_series';
+            const streamUrl = `${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=${action}&stream_id=${streamId}`;
+            const player = videojs('player');
+            player.src({
+                src: `${credentials.host}/${section === 'live' ? 'live' : section === 'movies' ? 'movie' : 'series'}/${encodeURIComponent(credentials.username)}/${encodeURIComponent(credentials.password)}/${streamId}.${section === 'movies' ? 'mp4' : 'ts'}`,
+                type: 'application/x-mpegURL'
+            });
+            player.play();
+
+            // Load EPG for live TV
+            if (section === 'live') {
+                fetchEPG(streamId);
+            } else {
+                document.getElementById('epg').style.display = 'none';
+            }
+        }
+
+        function fetchEPG(streamId) {
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_simple_data_table&stream_id=${streamId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const epgDiv = document.getElementById('epg');
+                    epgDiv.innerHTML = data.epg_list && data.epg_list.length > 0
+                        ? data.epg_list.map(program => `
+                            <div>
+                                <strong>${program.title}</strong>
+                                <p>${new Date(program.start * 1000).toLocaleString()} - ${new Date(program.end * 1000).toLocaleString()}</p>
+                                <p>${program.description}</p>
+                            </div>
+                        `).join('')
+                        : '<p>Nenhum EPG disponível.</p>';
+                    epgDiv.style.display = 'block';
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar EPG:', error);
+                    document.getElementById('epg').style.display = 'none';
+                });
+        }
+
+        function globalSearch() {
+            const query = document.getElementById('search').value.toLowerCase();
+            if (!query) {
+                loadSection(currentSection);
+                return;
+            }
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_live_streams`)
+                .then(response => response.json())
+                .then(live => {
+                    fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_vod_streams`)
+                        .then(response => response.json())
+                        .then(vod => {
+                            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_series`)
+                                .then(response => response.json())
+                                .then(series => {
+                                    const results = [
+                                        ...live.filter(item => item.name.toLowerCase().includes(query)).map(item => ({ section: 'live', ...item })),
+                                        ...vod.filter(item => item.name.toLowerCase().includes(query)).map(item => ({ section: 'movies', ...item })),
+                                        ...series.filter(item => item.name.toLowerCase().includes(query)).map(item => ({ section: 'series', ...item }))
+                                    ];
+                                    const contentGrid = document.getElementById('content-grid');
+                                    contentGrid.innerHTML = results.map(item => `
+                                        <div class="content-item" onclick="playStream('${item.section}', '${item.stream_id || item.series_id}', '${item.name}', '${item.stream_icon || ''}')">
+                                            <img src="${item.stream_icon || 'https://via.placeholder.com/150'}" alt="${item.name}">
+                                            <p>${item.name}</p>
+                                        </div>
+                                    `).join('');
+                                    document.getElementById('video-player').style.display = 'none';
+                                    document.getElementById('epg').style.display = 'none';
+                                    document.getElementById('account-info').style.display = 'none';
+                                    document.getElementById('content-grid').style.display = 'grid';
+                                });
+                        });
+                });
+        }
+
+        function showAccountInfo() {
+            document.getElementById('content-grid').style.display = 'none';
+            document.getElementById('video-player').style.display = 'none';
+            document.getElementById('epg').style.display = 'none';
+
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}`)
+                .then(response => response.json())
+                .then(data => {
+                    const accountInfo = document.getElementById('account-info');
+                    accountInfo.style.display = 'block';
+                    const userInfo = data.user_info;
+                    accountInfo.innerHTML = `
+                        <h3>Informações da Conta</h3>
+                        <p><strong>Usuário:</strong> ${userInfo.username}</p>
+                        <p><strong>Senha:</strong> ${userInfo.password}</p>
+                        <p><strong>Data de Criação:</strong> ${new Date(userInfo.created_at * 1000).toLocaleDateString()}</p>
+                        <p><strong>Expiração:</strong> ${new Date(userInfo.exp_date * 1000).toLocaleDateString()}</p>
+                    `;
+                })
+                .catch(error => {
+                    console.error('Erro ao carregar informações da conta:', error);
+                    alert('Erro ao carregar informações da conta.');
+                });
+        }
+
+        // Initialize
+        loadSection('live');
+    </script>
+</body>
+</html>

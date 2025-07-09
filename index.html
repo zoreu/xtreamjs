@@ -1,31 +1,134 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>Minha Primeira Página</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #f0f0f0;
-      text-align: center;
-      padding: 50px;
-    }
-    h1 {
-      color: #333366;
-    }
-    a {
-      color: #0066cc;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Xtream Codes Panel</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        .login-container h2 {
+            color: #1e3a8a;
+            text-align: center;
+        }
+        .login-container input {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .login-container button {
+            width: 100%;
+            padding: 10px;
+            background-color: #1e3a8a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .login-container button:hover {
+            background-color: #3b82f6;
+        }
+        .login-container label {
+            display: flex;
+            align-items: center;
+            margin: 10px 0;
+        }
+        @media (max-width: 600px) {
+            .login-container {
+                margin: 20px;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="login-container">
+        <h2>Login Xtream Codes</h2>
+        <input type="text" id="host" placeholder="Host (ex: http://example.com:8080)" required>
+        <input type="text" id="username" placeholder="Usuário" required>
+        <input type="password" id="password" placeholder="Senha" required>
+        <label>
+            <input type="checkbox" id="keepLoggedIn"> Manter logado
+        </label>
+        <button onclick="login()">Entrar</button>
+    </div>
+<script>
+// Check if already logged in
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
 
-  <h1>Bem-vindo à minha página!</h1>
-  <p>Esta é uma página HTML de exemplo. Aqui você pode aprender como estruturar um site básico.</p>
+if (getCookie('host') && getCookie('username') && getCookie('password')) {
+    window.location.href = 'main.html';
+}
 
-  <img src="https://via.placeholder.com/300" alt="Imagem de exemplo" width="300">
+function login() {
+    const host = document.getElementById('host').value.trim();
+    const username = document.getElementById('username').value.trim();
+    const password = document.getElementById('password').value.trim();
+    const keepLoggedIn = document.getElementById('keepLoggedIn').checked;
 
-  <p>Visite o site do <a href="https://www.w3schools.com" target="_blank">W3Schools</a> para aprender mais sobre HTML!</p>
+    if (!host || !username || !password) {
+        alert('Por favor, preencha todos os campos.');
+        return;
+    }
 
+    // Validate host format (basic check)
+    if (!host.startsWith('http://') && !host.startsWith('https://')) {
+        alert('O host deve começar com http:// ou https://');
+        return;
+    }
+
+    // Set cookie expiration: 1 day if not "Keep me logged in", indefinite if checked
+    const expires = keepLoggedIn ? '' : '; expires=' + new Date(Date.now() + 24 * 60 * 60 * 1000).toUTCString();
+
+    // Store credentials in cookies
+    document.cookie = `host=${encodeURIComponent(host)}; path=/${expires}`;
+    document.cookie = `username=${encodeURIComponent(username)}; path=/${expires}`;
+    document.cookie = `password=${encodeURIComponent(password)}; path=/${expires}`;
+
+    // Attempt to validate credentials with API
+    fetch(`${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.user_info && data.user_info.auth === 1) {
+                window.location.href = 'main.html';
+            } else {
+                alert('Credenciais inválidas.');
+                // Clear cookies on invalid login
+                document.cookie = 'host=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+                document.cookie = 'username=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+                document.cookie = 'password=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            }
+        })
+        .catch(error => {
+            console.error('Erro:', error);
+            alert('Erro ao conectar com o servidor.');
+            // Clear cookies on server error
+            document.cookie = 'host=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            document.cookie = 'username=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            document.cookie = 'password=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+        });
+}
+</script>
 </body>
 </html>
