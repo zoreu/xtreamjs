@@ -102,6 +102,12 @@
         .video-player {
             margin: 20px 0;
         }
+        .video-js {
+            min-width: 600px;
+            min-height: 600px;
+            width: 100%;
+            max-width: 100%;
+        }
         .epg {
             margin-top: 20px;
             padding: 10px;
@@ -127,6 +133,12 @@
                 margin-left: 0;
                 margin-top: 20px;
             }
+            .video-js {
+                min-width: 100%;
+                min-height: 300px;
+                width: 100%;
+                height: auto;
+            }
         }
     </style>
 </head>
@@ -149,7 +161,7 @@
         <div class="content" id="content">
             <div id="content-grid" class="content-grid"></div>
             <div id="video-player" class="video-player" style="display: none;">
-                <video id="player" class="video-js vjs-default-skin" controls preload="auto" width="100%" height="360">
+                <video id="player" class="video-js vjs-default-skin" controls preload="auto">
                     <source src="" type="application/x-mpegURL">
                 </video>
             </div>
@@ -243,7 +255,7 @@
             const streamUrl = `${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=${action}&stream_id=${streamId}`;
             const player = videojs('player');
             player.src({
-                src: `${credentials.host}/${section === 'live' ? 'live' : section === 'movies' ? 'movie' : 'series'}/${encodeURIComponent(credentials.username)}/${encodeURIComponent(credentials.password)}/${streamId}.${section === 'movies' ? 'mp4' : 'ts'}`,
+                src: `${credentials.host}/${section === 'live' ? 'live' : section === 'movies' ? 'movie' : 'series'}/${encodeURIComponent(credentials.username)}/${encodeURIComponent(credentials.password)}/${streamId}.${section === 'movies' ? 'mp4' : 'm3u8'}`,
                 type: 'application/x-mpegURL'
             });
             player.play();
@@ -257,12 +269,12 @@
         }
 
         function fetchEPG(streamId) {
-            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_simple_data_table&stream_id=${streamId}`)
+            fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}&action=get_short_epg&stream_id=${streamId}`)
                 .then(response => response.json())
                 .then(data => {
                     const epgDiv = document.getElementById('epg');
-                    epgDiv.innerHTML = data.epg_list && data.epg_list.length > 0
-                        ? data.epg_list.map(program => `
+                    epgDiv.innerHTML = data.epg_listings && data.epg_listings.length > 0
+                        ? data.epg_listings.map(program => `
                             <div>
                                 <strong>${program.title}</strong>
                                 <p>${new Date(program.start * 1000).toLocaleString()} - ${new Date(program.end * 1000).toLocaleString()}</p>
@@ -318,7 +330,6 @@
             document.getElementById('content-grid').style.display = 'none';
             document.getElementById('video-player').style.display = 'none';
             document.getElementById('epg').style.display = 'none';
-
             fetch(`${credentials.host}/player_api.php?username=${encodeURIComponent(credentials.username)}&password=${encodeURIComponent(credentials.password)}`)
                 .then(response => response.json())
                 .then(data => {
